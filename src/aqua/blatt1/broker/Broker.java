@@ -3,6 +3,7 @@ package aqua.blatt1.broker;
 
 import aqua.blatt1.common.*;
 import aqua.blatt1.common.msgtypes.*;
+import aqua.blatt2.broker.PoisonPill;
 import messaging.*;
 
 import java.io.Serializable;
@@ -12,12 +13,23 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
+import javax.swing.JOptionPane;
+
 public class Broker {
     private Endpoint endpoint = new Endpoint(4711);
     private ClientCollection<InetSocketAddress> collection = new ClientCollection<InetSocketAddress>();
-    private boolean done = false;
+    volatile private boolean stopRequested = false;
     int index = 1;
     ReadWriteLock lock = new ReentrantReadWriteLock();
+
+    private class StopRequestTask implements Runnable {
+
+        @Override
+        public void run() {
+            JOptionPane.showMessageDialog(null, "Pres OK button to stop server");
+            stopRequested = true;
+        }
+    }
 
     private class BrokerTask implements Runnable {
         Serializable payload;
@@ -64,16 +76,19 @@ public class Broker {
                     endpoint.send(rightTank, payload);
                 }
             }
-
         }
     }
     public void broker() {
         ExecutorService executor = Executors.newFixedThreadPool(4);
+        Runnable stopService = new StopRequestTask();
+        executor.execute(stopService);
 
-        while(!done) {
+        while(!stopRequested) {
             Message message = endpoint.blockingReceive();
+            if (message.getPayload() instanceof PoisonPill) {
+                break;
+            }
             Runnable brokerTask = new BrokerTask(message);
-
             executor.execute(brokerTask);
         }
         executor.shutdown();
