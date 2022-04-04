@@ -33,7 +33,8 @@ public class TankView extends JPanel implements Observer {
 
 		setPreferredSize(new Dimension(TankModel.WIDTH, TankModel.HEIGHT));
 		setBackground(new Color(175, 200, 235));
-
+		while(!tankModel.hasToken()) {
+		}
 		addMouseListener(new MouseAdapter() {
 			@Override
 			public void mouseClicked(MouseEvent e) {

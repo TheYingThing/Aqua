@@ -67,7 +67,9 @@ public class Broker {
 
             if (index == 1) {
                 NeighborUpdate firstNeighbors = new NeighborUpdate(sender, sender);
+                Token token = new Token();
                 endpoint.send(sender, firstNeighbors);
+                endpoint.send(sender, token);
             }
 
             endpoint.send(sender, response);
