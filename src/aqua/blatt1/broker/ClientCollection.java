@@ -12,11 +12,17 @@ public class ClientCollection<T> {
 	private class Client {
 		final String id;
 		final T client;
+		public T leftNeighbor;
+		public T rightNeighbor;
 
 		Client(String id, T client) {
 			this.id = id;
 			this.client = client;
+			this.leftNeighbor = null;
+			this.rightNeighbor = null;
 		}
+
+
 	}
 
 	private final List<Client> clients;

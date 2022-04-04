@@ -1,6 +1,5 @@
 package aqua.blatt1.broker;
 
-
 import aqua.blatt1.common.*;
 import aqua.blatt1.common.msgtypes.*;
 import aqua.blatt2.broker.PoisonPill;
@@ -23,7 +22,6 @@ public class Broker {
     ReadWriteLock lock = new ReentrantReadWriteLock();
 
     private class StopRequestTask implements Runnable {
-
         @Override
         public void run() {
             JOptionPane.showMessageDialog(null, "Pres OK button to stop server");
@@ -48,17 +46,36 @@ public class Broker {
                 lock.writeLock().lock();
                 collection.add(clientId, sender);
                 lock.writeLock().unlock();
+
                 RegisterResponse response = new RegisterResponse(clientId);
+                InetSocketAddress leftAddress = collection.getLeftNeighorOf(collection.indexOf(clientId));
+                InetSocketAddress rightAddress = collection.getRightNeighorOf(collection.indexOf(clientId));
+                NeighborUpdate clientNeighbors = new NeighborUpdate(leftAddress, rightAddress);
+                NeighborUpdate leftNeighbors = new NeighborUpdate(null, sender);
+                NeighborUpdate rightNeighbors = new NeighborUpdate(sender, null);
+                endpoint.send(sender, clientNeighbors);
+                endpoint.send(rightAddress, rightNeighbors);
+                endpoint.send(leftAddress, leftNeighbors);
+                if (index == 1) {
+                    NeighborUpdate firstNeighbors = new NeighborUpdate(sender, sender);
+                    endpoint.send(sender, firstNeighbors);
+                }
                 endpoint.send(sender, response);
                 index++;
 
             } else if (payload instanceof DeregisterRequest) {
                 String id = ((DeregisterRequest) payload).getId();
+                InetSocketAddress leftAddress = collection.getLeftNeighorOf(collection.indexOf(id));
+                InetSocketAddress rightAddress = collection.getRightNeighorOf(collection.indexOf(id));
+                NeighborUpdate leftNeighbors = new NeighborUpdate(null, rightAddress);
+                NeighborUpdate rightNeighbors = new NeighborUpdate(leftAddress, null);
                 lock.writeLock().lock();
                 collection.remove(collection.indexOf(id));
                 lock.writeLock().unlock();
+                endpoint.send(leftAddress, leftNeighbors);
+                endpoint.send(rightAddress, rightNeighbors);
 
-            } else if (payload instanceof HandoffRequest) {
+            } /*else if (payload instanceof HandoffRequest) {
                 FishModel fish = ((HandoffRequest) payload).getFish();
 
                 int tankIndex = collection.indexOf(sender);
@@ -75,7 +92,7 @@ public class Broker {
                     lock.writeLock().unlock();
                     endpoint.send(rightTank, payload);
                 }
-            }
+            }*/
         }
     }
     public void broker() {
@@ -98,4 +115,5 @@ public class Broker {
         Broker b = new Broker();
         b.broker();
     }
+
 }

@@ -1,5 +1,6 @@
 package aqua.blatt1.client;
 
+import java.net.InetSocketAddress;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.Observable;
@@ -18,6 +19,8 @@ public class TankModel extends Observable implements Iterable<FishModel> {
 	protected static final int MAX_FISHIES = 5;
 	protected static final Random rand = new Random();
 	protected volatile String id;
+	protected volatile InetSocketAddress leftNeighbor;
+	protected volatile InetSocketAddress rightNeighbor;
 	protected final Set<FishModel> fishies;
 	protected int fishCounter = 0;
 	protected final ClientCommunicator.ClientForwarder forwarder;
@@ -49,6 +52,15 @@ public class TankModel extends Observable implements Iterable<FishModel> {
 		fishies.add(fish);
 	}
 
+	public synchronized void updateNeighbors(InetSocketAddress left, InetSocketAddress right) {
+		if(left != null) {
+			this.leftNeighbor = (left != this.leftNeighbor) ? left : null;
+		}
+		if(right != null) {
+			this.rightNeighbor = (right != this.rightNeighbor) ? right : null;
+		}
+	}
+
 	public String getId() {
 		return id;
 	}
@@ -68,7 +80,11 @@ public class TankModel extends Observable implements Iterable<FishModel> {
 			fish.update();
 
 			if (fish.hitsEdge())
-				forwarder.handOff(fish);
+				if(fish.getDirection() == Direction.LEFT) {
+					forwarder.handOff(fish, this.leftNeighbor);
+				} else {
+					forwarder.handOff(fish, this.rightNeighbor);
+				}
 
 			if (fish.disappears())
 				it.remove();
