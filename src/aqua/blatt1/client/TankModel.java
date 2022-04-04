@@ -100,7 +100,7 @@ public class TankModel extends Observable implements Iterable<FishModel> {
 			@Override
 			public void run() {
 				token = false;
-				forwarder.sendToken(rightNeighbor);
+				forwarder.sendToken(leftNeighbor);
 			}
 		};
 		timer.schedule(task, 2000);
