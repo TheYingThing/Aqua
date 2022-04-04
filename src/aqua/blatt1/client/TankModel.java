@@ -21,6 +21,7 @@ public class TankModel extends Observable implements Iterable<FishModel> {
 	protected volatile String id;
 	protected volatile InetSocketAddress leftNeighbor;
 	protected volatile InetSocketAddress rightNeighbor;
+	protected volatile boolean token = false;
 	protected final Set<FishModel> fishies;
 	protected int fishCounter = 0;
 	protected final ClientCommunicator.ClientForwarder forwarder;
