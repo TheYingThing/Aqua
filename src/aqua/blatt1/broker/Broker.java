@@ -55,8 +55,12 @@ public class Broker {
             lock.writeLock().unlock();
 
             RegisterResponse response = new RegisterResponse(clientId);
+            lock.readLock().lock();
             InetSocketAddress leftAddress = collection.getLeftNeighorOf(collection.indexOf(clientId));
+            lock.readLock().lock();
+            lock.readLock().lock();
             InetSocketAddress rightAddress = collection.getRightNeighorOf(collection.indexOf(clientId));
+            lock.readLock().lock();
             NeighborUpdate clientNeighbors = new NeighborUpdate(leftAddress, rightAddress);
             NeighborUpdate leftNeighbors = new NeighborUpdate(null, sender);
             NeighborUpdate rightNeighbors = new NeighborUpdate(sender, null);
@@ -78,8 +82,10 @@ public class Broker {
 
         public void deregister() {
             String id = ((DeregisterRequest) payload).getId();
+            lock.readLock().lock();
             InetSocketAddress leftAddress = collection.getLeftNeighorOf(collection.indexOf(id));
             InetSocketAddress rightAddress = collection.getRightNeighorOf(collection.indexOf(id));
+            lock.readLock().lock();
             NeighborUpdate leftNeighbors = new NeighborUpdate(null, rightAddress);
             NeighborUpdate rightNeighbors = new NeighborUpdate(leftAddress, null);
 
