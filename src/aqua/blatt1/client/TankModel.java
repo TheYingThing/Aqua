@@ -110,6 +110,10 @@ public class TankModel extends Observable implements Iterable<FishModel> {
 		return this.token;
 	}
 
+	public synchronized void initiateSnapshot() {
+
+	}
+
 	private synchronized void update() {
 		updateFishies();
 		setChanged();
