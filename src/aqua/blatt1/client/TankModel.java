@@ -7,6 +7,10 @@ import java.util.concurrent.TimeUnit;
 
 import aqua.blatt1.common.Direction;
 import aqua.blatt1.common.FishModel;
+import aqua.blatt1.common.RecordingModus;
+import aqua.blatt1.common.msgtypes.CollectionToken;
+
+import static aqua.blatt1.common.RecordingModus.*;
 
 public class TankModel extends Observable implements Iterable<FishModel> {
 
@@ -21,6 +25,11 @@ public class TankModel extends Observable implements Iterable<FishModel> {
 	protected volatile Timer timer = new Timer();
 	protected final Set<FishModel> fishies;
 	protected int fishCounter = 0;
+	protected RecordingModus modus = IDLE;
+	protected CollectionToken collectionToken;
+	protected int fishSnapshot = 0;
+	protected int globalSnapshot = 0;
+	protected boolean initiator = false;
 	protected final ClientCommunicator.ClientForwarder forwarder;
 
 	public TankModel(ClientCommunicator.ClientForwarder forwarder) {
@@ -48,6 +57,9 @@ public class TankModel extends Observable implements Iterable<FishModel> {
 	synchronized void receiveFish(FishModel fish) {
 		fish.setToStart();
 		fishies.add(fish);
+		if(!modus.equals(IDLE)) {
+			this.fishSnapshot++;
+		}
 	}
 
 	public synchronized void updateNeighbors(InetSocketAddress left, InetSocketAddress right) {
@@ -81,8 +93,14 @@ public class TankModel extends Observable implements Iterable<FishModel> {
 				if(hasToken()) {
 					if(fish.getDirection() == Direction.LEFT) {
 						forwarder.handOff(fish, this.leftNeighbor);
+						if(!modus.equals(IDLE)) {
+							fishSnapshot--;
+						}
 					} else {
 						forwarder.handOff(fish, this.rightNeighbor);
+						if(!modus.equals(IDLE)) {
+							fishSnapshot--;
+						}
 					}
 				} else {
 					fish.reverse();
@@ -111,7 +129,48 @@ public class TankModel extends Observable implements Iterable<FishModel> {
 	}
 
 	public synchronized void initiateSnapshot() {
+		this.initiator = true;
+		this.modus = BOTH;
+		this.fishSnapshot = fishCounter;
+		forwarder.sendMarker(leftNeighbor);
+		forwarder.sendMarker(rightNeighbor);
+		forwarder.sendCollectionToken(leftNeighbor, new CollectionToken());
+	}
 
+	public synchronized void forwardCollectionToken() {
+		collectionToken.addSnapshot(fishSnapshot);
+		forwarder.sendCollectionToken(leftNeighbor, collectionToken);
+	}
+
+	public synchronized void receiveCollectionToken(CollectionToken token) {
+		collectionToken = token;
+		if (modus.equals(IDLE) && !initiator) {
+			forwardCollectionToken();
+		} else if (initiator) {
+			collectionToken.addSnapshot(fishSnapshot);
+			globalSnapshot = collectionToken.getTotalFishies();
+		}
+	}
+
+	public synchronized void receiveMarker(InetSocketAddress sender) {
+		if(modus.equals(IDLE)) {
+			modus = sender.equals(rightNeighbor) ? LEFT : RIGHT;
+			this.fishSnapshot = fishCounter;
+			forwarder.sendMarker(leftNeighbor);
+			forwarder.sendMarker(rightNeighbor);
+		} else {
+			switch(modus) {
+				case BOTH:
+					modus = sender.equals(rightNeighbor) ? LEFT : RIGHT;
+					break;
+				default:
+					modus = IDLE;
+					if(collectionToken != null && !initiator) {
+						forwardCollectionToken();
+					}
+
+			}
+		}
 	}
 
 	private synchronized void update() {

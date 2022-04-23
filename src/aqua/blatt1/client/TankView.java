@@ -1,16 +1,12 @@
 package aqua.blatt1.client;
 
-import java.awt.Color;
-import java.awt.Dimension;
-import java.awt.Graphics;
-import java.awt.Graphics2D;
+import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.util.Observable;
 import java.util.Observer;
 
-import javax.swing.JPanel;
-import javax.swing.SwingUtilities;
+import javax.swing.*;
 
 import aqua.blatt1.common.FishModel;
 
@@ -43,8 +39,9 @@ public class TankView extends JPanel implements Observer {
 
 	@SuppressWarnings("unused")
 	private void drawBorders(Graphics2D g2d) {
-		g2d.drawLine(0, 0, 0, TankModel.HEIGHT);
-		g2d.drawLine(TankModel.WIDTH - 2, 0, TankModel.WIDTH - 2, TankModel.HEIGHT);
+		g2d.setStroke(new BasicStroke(10));
+		g2d.drawLine(5, 0, 5, TankModel.HEIGHT);
+		g2d.drawLine(TankModel.WIDTH + 7, 0, TankModel.WIDTH + 7, TankModel.HEIGHT);
 	}
 
 	private void doDrawing(Graphics g) {
@@ -54,15 +51,17 @@ public class TankView extends JPanel implements Observer {
 			g2d.drawImage(fishView.getImage(fishModel), fishModel.getX(), fishModel.getY(), null);
 			g2d.drawString(fishModel.getId(), fishModel.getX(), fishModel.getY());
 		}
-		if (!tankModel.hasToken()) {
-			drawBorders(g2d);
-		}
 	}
 
 	@Override
 	public void paintComponent(Graphics g) {
 		super.paintComponent(g);
 		doDrawing(g);
+		if (!tankModel.hasToken()) {
+			drawBorders((Graphics2D) g);
+		}
+		g.drawString(String.valueOf(this.tankModel.globalSnapshot), TankModel.HEIGHT - 20, TankModel.WIDTH/2);
+
 	}
 
 	@Override
