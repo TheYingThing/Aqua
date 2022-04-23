@@ -43,44 +43,9 @@ public class Broker {
 
             if (payload instanceof RegisterRequest) {
                 String clientId = "tank" + index;
-                lock.writeLock().lock();
-                collection.add(clientId, sender);
-                lock.writeLock().unlock();
-
-                RegisterResponse response = new RegisterResponse(clientId);
-                System.out.println(clientId);
-                InetSocketAddress leftAddress = collection.getLeftNeighorOf(collection.indexOf(clientId));
-                InetSocketAddress rightAddress = collection.getRightNeighorOf(collection.indexOf(clientId));
-                NeighborUpdate clientNeighbors = new NeighborUpdate(leftAddress, rightAddress);
-                NeighborUpdate leftNeighbors = new NeighborUpdate(null, sender);
-                NeighborUpdate rightNeighbors = new NeighborUpdate(sender, null);
-
-                endpoint.send(sender, clientNeighbors);
-                endpoint.send(rightAddress, rightNeighbors);
-                endpoint.send(leftAddress, leftNeighbors);
-
-                if (index == 1) {
-                    NeighborUpdate firstNeighbors = new NeighborUpdate(sender, sender);
-                    Token token = new Token();
-                    endpoint.send(sender, firstNeighbors);
-                    endpoint.send(sender, token);
-                }
-
-                endpoint.send(sender, response);
-                index++;
+                register(clientId);
             } else if (payload instanceof DeregisterRequest) {
-                String id = ((DeregisterRequest) payload).getId();
-                InetSocketAddress leftAddress = collection.getLeftNeighorOf(collection.indexOf(id));
-                InetSocketAddress rightAddress = collection.getRightNeighorOf(collection.indexOf(id));
-                NeighborUpdate leftNeighbors = new NeighborUpdate(null, rightAddress);
-                NeighborUpdate rightNeighbors = new NeighborUpdate(leftAddress, null);
-
-                lock.writeLock().lock();
-                collection.remove(collection.indexOf(id));
-                lock.writeLock().unlock();
-
-                endpoint.send(leftAddress, leftNeighbors);
-                endpoint.send(rightAddress, rightNeighbors);
+                deregister();
             }
         }
 
@@ -92,10 +57,8 @@ public class Broker {
             RegisterResponse response = new RegisterResponse(clientId);
             lock.readLock().lock();
             InetSocketAddress leftAddress = collection.getLeftNeighorOf(collection.indexOf(clientId));
-            lock.readLock().lock();
-            lock.readLock().lock();
             InetSocketAddress rightAddress = collection.getRightNeighorOf(collection.indexOf(clientId));
-            lock.readLock().lock();
+            lock.readLock().unlock();
             NeighborUpdate clientNeighbors = new NeighborUpdate(leftAddress, rightAddress);
             NeighborUpdate leftNeighbors = new NeighborUpdate(null, sender);
             NeighborUpdate rightNeighbors = new NeighborUpdate(sender, null);
@@ -119,7 +82,7 @@ public class Broker {
             lock.readLock().lock();
             InetSocketAddress leftAddress = collection.getLeftNeighorOf(collection.indexOf(id));
             InetSocketAddress rightAddress = collection.getRightNeighorOf(collection.indexOf(id));
-            lock.readLock().lock();
+            lock.readLock().unlock();
             NeighborUpdate leftNeighbors = new NeighborUpdate(null, rightAddress);
             NeighborUpdate rightNeighbors = new NeighborUpdate(leftAddress, null);
 
