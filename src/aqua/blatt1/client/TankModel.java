@@ -6,10 +6,12 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
 import aqua.blatt1.common.Direction;
+import aqua.blatt1.common.FishLocation;
 import aqua.blatt1.common.FishModel;
 import aqua.blatt1.common.RecordingModus;
 import aqua.blatt1.common.msgtypes.CollectionToken;
 
+import static aqua.blatt1.common.FishLocation.HERE;
 import static aqua.blatt1.common.RecordingModus.*;
 
 public class TankModel extends Observable implements Iterable<FishModel> {
@@ -24,6 +26,8 @@ public class TankModel extends Observable implements Iterable<FishModel> {
 	protected volatile boolean token = false;
 	protected volatile Timer timer = new Timer();
 	protected final Set<FishModel> fishies;
+
+	protected final Map<String, FishLocation> fishLocation;
 	protected int fishCounter = 0;
 	protected RecordingModus modus = IDLE;
 	protected CollectionToken collectionToken;
@@ -34,6 +38,7 @@ public class TankModel extends Observable implements Iterable<FishModel> {
 
 	public TankModel(ClientCommunicator.ClientForwarder forwarder) {
 		this.fishies = Collections.newSetFromMap(new ConcurrentHashMap<FishModel, Boolean>());
+		this.fishLocation = new HashMap<String, FishLocation>();
 		this.forwarder = forwarder;
 	}
 
@@ -51,12 +56,14 @@ public class TankModel extends Observable implements Iterable<FishModel> {
 					rand.nextBoolean() ? Direction.LEFT : Direction.RIGHT);
 
 			fishies.add(fish);
+			fishLocation.put(fish.getId(), FishLocation.HERE);
 		}
 	}
 
 	synchronized void receiveFish(FishModel fish) {
 		fish.setToStart();
 		fishies.add(fish);
+		fishLocation.put(fish.getId(), FishLocation.HERE);
 		if(!modus.equals(IDLE)) {
 			this.fishSnapshot++;
 		}
@@ -93,11 +100,13 @@ public class TankModel extends Observable implements Iterable<FishModel> {
 				if(hasToken()) {
 					if(fish.getDirection() == Direction.LEFT) {
 						forwarder.handOff(fish, this.leftNeighbor);
+						fishLocation.replace(fish.getId(), FishLocation.LEFT);
 						if(!modus.equals(IDLE)) {
 							fishSnapshot--;
 						}
 					} else {
 						forwarder.handOff(fish, this.rightNeighbor);
+						fishLocation.replace(fish.getId(), FishLocation.RIGHT);
 						if(!modus.equals(IDLE)) {
 							fishSnapshot--;
 						}
@@ -168,9 +177,27 @@ public class TankModel extends Observable implements Iterable<FishModel> {
 					if(collectionToken != null && !initiator) {
 						forwardCollectionToken();
 					}
-
 			}
 		}
+	}
+
+	public synchronized void locateFishGlobally(String fishID) {
+		switch (fishLocation.get(fishID)){
+			case HERE:
+				locateFishLocally(fishID);
+				break;
+			case LEFT:
+				forwarder.sendLocationRequest(leftNeighbor, fishID);
+				break;
+			case RIGHT:
+				forwarder.sendLocationRequest(rightNeighbor, fishID);
+				break;
+		}
+	}
+
+	private synchronized void locateFishLocally(String fishID) {
+		FishModel fish = fishies.stream().filter(f -> f.getId().equals(fishID)).findFirst().get();
+		fish.toggle();
 	}
 
 	private synchronized void update() {
