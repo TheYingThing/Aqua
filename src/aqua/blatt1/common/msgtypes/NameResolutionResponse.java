@@ -12,5 +12,12 @@ public final class NameResolutionResponse implements Serializable {
         this.requestID = requestID;
         this.tankAddress = tankAddress;
     }
-    
+
+    public String getRequestID() {
+        return requestID;
+    }
+
+    public InetSocketAddress getTankAddress() {
+        return tankAddress;
+    }
 }

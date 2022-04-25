@@ -13,4 +13,11 @@ public final class NameResolutionRequest implements Serializable {
         this.tankID = tankID;
     }
 
+    public String getRequestID() {
+        return requestID;
+    }
+
+    public String getTankID() {
+        return tankID;
+    }
 }
