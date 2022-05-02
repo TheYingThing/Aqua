@@ -7,6 +7,11 @@ import messaging.*;
 
 import java.io.Serializable;
 import java.net.InetSocketAddress;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.Date;
+import java.util.Timer;
+import java.util.TimerTask;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.locks.ReadWriteLock;
@@ -20,6 +25,9 @@ public class Broker {
     volatile private boolean stopRequested = false;
     private int index = 1;
     ReadWriteLock lock = new ReentrantReadWriteLock();
+    private Timer timer = new Timer();
+
+    private final int LEASELENGTH = 5;
 
     private class StopRequestTask implements Runnable {
         @Override
@@ -43,21 +51,52 @@ public class Broker {
 
             if (payload instanceof RegisterRequest) {
                 String clientId = "tank" + index;
-                register(clientId);
+                int i = collection.indexOf(sender);
+                if(i != -1) {
+                    register(collection.getId(i), new RegisterResponse(collection.getId(i), LEASELENGTH, true));
+                } else {
+                    register(clientId, new RegisterResponse(clientId, LEASELENGTH, false));
+                    index++;
+                }
+
             } else if (payload instanceof DeregisterRequest) {
-                deregister();
+                String id = ((DeregisterRequest) payload).getId();
+                int index = collection.indexOf(id);
+                deregister(index);
             } else if (payload instanceof NameResolutionRequest) {
                 InetSocketAddress address = collection.getClient(collection.indexOf(((NameResolutionRequest) payload).getTankID()));
                 endpoint.send(sender, new NameResolutionResponse(address, ((NameResolutionRequest) payload).getRequestID()));
             }
+
+            TimerTask task = new TimerTask() {
+                @Override
+                public void run() {
+                    for(int i = 0 ; i < collection.size() ; i++) {
+                        Long diff = ChronoUnit.MILLIS.between(collection.getRegTime(i), Instant.now());
+                        if(diff.compareTo(5000L) > 0) {
+                            deregister(i);
+                        }
+                    }
+
+                }
+            };
+
+            timer.schedule(task, 0, 1000);
         }
 
-        public void register(String clientId) {
+        public void register(String clientId, RegisterResponse response) {
+            Instant d = Instant.now();
+            lock.readLock().lock();
+            int i = collection.indexOf(clientId);
+            lock.readLock().unlock();
             lock.writeLock().lock();
-            collection.add(clientId, sender);
+            if(i == -1) {
+                collection.add(clientId, sender);
+            } else {
+                collection.setRegTime(i, d);
+            }
             lock.writeLock().unlock();
 
-            RegisterResponse response = new RegisterResponse(clientId);
             lock.readLock().lock();
             InetSocketAddress leftAddress = collection.getLeftNeighorOf(collection.indexOf(clientId));
             InetSocketAddress rightAddress = collection.getRightNeighorOf(collection.indexOf(clientId));
@@ -77,20 +116,18 @@ public class Broker {
                 endpoint.send(sender, token);
             }
             endpoint.send(sender, response);
-            index++;
         }
 
-        public void deregister() {
-            String id = ((DeregisterRequest) payload).getId();
+        public void deregister(int i) {
             lock.readLock().lock();
-            InetSocketAddress leftAddress = collection.getLeftNeighorOf(collection.indexOf(id));
-            InetSocketAddress rightAddress = collection.getRightNeighorOf(collection.indexOf(id));
+            InetSocketAddress leftAddress = collection.getLeftNeighorOf(i);
+            InetSocketAddress rightAddress = collection.getRightNeighorOf(i);
             lock.readLock().unlock();
             NeighborUpdate leftNeighbors = new NeighborUpdate(null, rightAddress);
             NeighborUpdate rightNeighbors = new NeighborUpdate(leftAddress, null);
 
             lock.writeLock().lock();
-            collection.remove(collection.indexOf(id));
+            collection.remove(i);
             lock.writeLock().unlock();
 
             endpoint.send(leftAddress, leftNeighbors);

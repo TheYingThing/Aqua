@@ -1,6 +1,8 @@
 package aqua.blatt1.broker;
 
+import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 
 /*
@@ -15,14 +17,23 @@ public class ClientCollection<T> {
 		public T leftNeighbor;
 		public T rightNeighbor;
 
-		Client(String id, T client) {
+		public Instant regTime;
+
+		Client(String id, T client, Instant regTime) {
 			this.id = id;
 			this.client = client;
 			this.leftNeighbor = null;
 			this.rightNeighbor = null;
+			this.regTime = regTime;
 		}
 
+		public void setRegTime(Instant regTime) {
+			this.regTime = regTime;
+		}
 
+		public Instant getRegTime() {
+			return this.regTime;
+		}
 	}
 
 	private final List<Client> clients;
@@ -32,7 +43,7 @@ public class ClientCollection<T> {
 	}
 
 	public ClientCollection<T> add(String id, T client) {
-		clients.add(new Client(id, client));
+		clients.add(new Client(id, client, Instant.now()));
 		return this;
 	}
 
@@ -57,6 +68,18 @@ public class ClientCollection<T> {
 
 	public T getClient(int index) {
 		return clients.get(index).client;
+	}
+
+	public String getId(int index) {
+		return clients.get(index).id;
+	}
+
+	public void setRegTime(int index, Instant regTime) {
+		clients.get(index).setRegTime(regTime);
+	}
+
+	public Instant getRegTime(int index) {
+		return clients.get(index).getRegTime();
 	}
 
 	public int size() {
