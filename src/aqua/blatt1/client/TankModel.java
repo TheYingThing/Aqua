@@ -1,6 +1,5 @@
 package aqua.blatt1.client;
 
-import java.io.Serializable;
 import java.net.InetSocketAddress;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
