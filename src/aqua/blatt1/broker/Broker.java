@@ -46,6 +46,16 @@ public class Broker {
                 register(clientId);
             } else if (payload instanceof DeregisterRequest) {
                 deregister();
+            } else if (payload instanceof NameResolutionRequest) {
+                String tankId = ((NameResolutionRequest) payload).getTankID();
+                String requestId = ((NameResolutionRequest) payload).getRequestID();
+                lock.readLock().lock();
+                int index = collection.indexOf(tankId);
+                InetSocketAddress tankaddress = collection.getClient(index);
+                lock.readLock().lock();
+
+                NameResolutionResponse nameResolutionResponse = new NameResolutionResponse(tankaddress, requestId);
+                endpoint.send(sender, nameResolutionResponse);
             }
         }
 

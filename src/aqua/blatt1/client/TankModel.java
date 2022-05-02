@@ -10,6 +10,8 @@ import aqua.blatt1.common.FishLocation;
 import aqua.blatt1.common.FishModel;
 import aqua.blatt1.common.RecordingModus;
 import aqua.blatt1.common.msgtypes.CollectionToken;
+import aqua.blatt1.common.msgtypes.LocationUpdate;
+import aqua.blatt1.common.msgtypes.NameResolutionResponse;
 
 import static aqua.blatt1.common.RecordingModus.*;
 import static aqua.blatt1.common.FishLocation.*;
@@ -33,12 +35,12 @@ public class TankModel extends Observable implements Iterable<FishModel> {
     protected int globalSnapshot = 0;
     protected boolean initiator = false;
     protected final ClientCommunicator.ClientForwarder forwarder;
-    protected volatile Map<String, FishLocation> fishLocationMap;
+    protected volatile Map<String, InetSocketAddress> homeAgent;
 
     public TankModel(ClientCommunicator.ClientForwarder forwarder) {
         this.fishies = Collections.newSetFromMap(new ConcurrentHashMap<FishModel, Boolean>());
         this.forwarder = forwarder;
-        this.fishLocationMap = new HashMap<>();
+        this.homeAgent = new HashMap<>();
     }
 
     synchronized void onRegistration(String id) {
@@ -55,14 +57,18 @@ public class TankModel extends Observable implements Iterable<FishModel> {
                     rand.nextBoolean() ? Direction.LEFT : Direction.RIGHT);
 
             fishies.add(fish);
-            fishLocationMap.put(fish.getId(), HERE);
+            homeAgent.put(fish.getId(), null);
         }
     }
 
     synchronized void receiveFish(FishModel fish) {
         fish.setToStart();
         fishies.add(fish);
-        fishLocationMap.put(fish.getId(), HERE);
+        if(homeAgent.containsKey(fish.getId())) {
+            homeAgent.replace(fish.getId(), null);
+        } else {
+            forwarder.sendNameResolutionRequest(fish.getTankId(), fish.getId());
+        }
         if (!modus.equals(IDLE)) {
             this.fishSnapshot++;
         }
@@ -99,13 +105,11 @@ public class TankModel extends Observable implements Iterable<FishModel> {
                 if (hasToken()) {
                     if (fish.getDirection() == Direction.LEFT) {
                         forwarder.handOff(fish, this.leftNeighbor);
-                        fishLocationMap.replace(fish.getId(), FishLocation.LEFT);
                         if (!modus.equals(IDLE)) {
                             fishSnapshot--;
                         }
                     } else {
                         forwarder.handOff(fish, this.rightNeighbor);
-                        fishLocationMap.replace(fish.getId(), FishLocation.RIGHT);
                         if (!modus.equals(IDLE)) {
                             fishSnapshot--;
                         }
@@ -180,24 +184,26 @@ public class TankModel extends Observable implements Iterable<FishModel> {
     }
 
     public void locateFishGlobally(String fish) {
-        FishLocation location = fishLocationMap.get(fish);
-        switch (location) {
-            case LEFT:
-                forwarder.sendLocationRequest(leftNeighbor, fish);
-                break;
-            case RIGHT:
-                forwarder.sendLocationRequest(rightNeighbor, fish);
-                break;
-            default:
-                locateFishLocally(fish);
-                break;
+        InetSocketAddress location = homeAgent.get(fish);
+        if(location == null) {
+            locateFishLocally(fish);
+        } else {
+            forwarder.sendLocationRequest(location, fish);
         }
     }
 
-    private void locateFishLocally(String fishId) {
+    public void locateFishLocally(String fishId) {
         fishies.stream()
                 .filter(fishModel -> fishId.equals(fishModel.getId()))
                 .forEach(FishModel::toggle);
+    }
+
+    public synchronized void receiveNameResolutionResponse(NameResolutionResponse response, InetSocketAddress sender) {
+        forwarder.sendLocationUpdate(response.getTankAddress(), response.getRequestID());
+    }
+
+    public synchronized void receiveLocationUpdate(String fishId, InetSocketAddress location) {
+        homeAgent.replace(fishId, location);
     }
 
     private synchronized void update() {
