@@ -1,20 +1,18 @@
 package aqua.blatt1.client;
 
+import aqua.blatt1.common.Direction;
+import aqua.blatt1.common.FishModel;
+import aqua.blatt1.common.RecordingModus;
+import aqua.blatt1.common.msgtypes.CollectionToken;
+import aqua.blatt1.common.msgtypes.NameResolutionResponse;
+
 import java.net.InetSocketAddress;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
-import aqua.blatt1.common.Direction;
-import aqua.blatt1.common.FishLocation;
-import aqua.blatt1.common.FishModel;
-import aqua.blatt1.common.RecordingModus;
-import aqua.blatt1.common.msgtypes.CollectionToken;
-import aqua.blatt1.common.msgtypes.LocationUpdate;
-import aqua.blatt1.common.msgtypes.NameResolutionResponse;
-
-import static aqua.blatt1.common.RecordingModus.*;
-import static aqua.blatt1.common.FishLocation.*;
+import static aqua.blatt1.common.RecordingModus.BOTH;
+import static aqua.blatt1.common.RecordingModus.IDLE;
 
 public class TankModel extends Observable implements Iterable<FishModel> {
 
@@ -43,9 +41,19 @@ public class TankModel extends Observable implements Iterable<FishModel> {
         this.homeAgent = new HashMap<>();
     }
 
-    synchronized void onRegistration(String id) {
+    synchronized void onRegistration(String id, int leaseTme, boolean newTank) {
         this.id = id;
-        newFish(WIDTH - FishModel.getXSize(), rand.nextInt(HEIGHT - FishModel.getYSize()));
+        if(newTank) {
+            newFish(WIDTH - FishModel.getXSize(), rand.nextInt(HEIGHT - FishModel.getYSize()));
+        }
+
+        TimerTask task = new TimerTask() {
+            @Override
+            public void run() {
+                forwarder.register();
+            }
+        };
+        timer.schedule(task, leaseTme);
     }
 
     public synchronized void newFish(int x, int y) {

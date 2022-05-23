@@ -72,7 +72,7 @@ public class ClientCommunicator {
                 Message msg = endpoint.blockingReceive();
 
                 if (msg.getPayload() instanceof RegisterResponse)
-                    tankModel.onRegistration(((RegisterResponse) msg.getPayload()).getId());
+                    tankModel.onRegistration(((RegisterResponse) msg.getPayload()).getId(), ((RegisterResponse) msg.getPayload()).getLeaseTime(), ((RegisterResponse) msg.getPayload()).isNewTank());
 
                 if (msg.getPayload() instanceof HandoffRequest)
                     tankModel.receiveFish(((HandoffRequest) msg.getPayload()).getFish());

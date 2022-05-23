@@ -1,7 +1,11 @@
 package aqua.blatt1.broker;
 
+import java.time.Instant;
+import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
+import java.util.Set;
 
 /*
  * This class is not thread-safe and hence must be used in a thread-safe way, e.g. thread confined or 
@@ -14,15 +18,15 @@ public class ClientCollection<T> {
 		final T client;
 		public T leftNeighbor;
 		public T rightNeighbor;
+		public Instant timestamp;
 
-		Client(String id, T client) {
+		Client(String id, T client, Instant timestamp) {
 			this.id = id;
 			this.client = client;
 			this.leftNeighbor = null;
 			this.rightNeighbor = null;
+			this.timestamp = timestamp;
 		}
-
-
 	}
 
 	private final List<Client> clients;
@@ -31,8 +35,8 @@ public class ClientCollection<T> {
 		clients = new ArrayList<Client>();
 	}
 
-	public ClientCollection<T> add(String id, T client) {
-		clients.add(new Client(id, client));
+	public ClientCollection<T> add(String id, T client, Instant timestamp) {
+		clients.add(new Client(id, client, timestamp));
 		return this;
 	}
 
@@ -59,6 +63,10 @@ public class ClientCollection<T> {
 		return clients.get(index).client;
 	}
 
+	public String getClientId(int index) {
+		return clients.get(index).id;
+	}
+
 	public int size() {
 		return clients.size();
 	}
@@ -71,4 +79,11 @@ public class ClientCollection<T> {
 		return index < clients.size() - 1 ? clients.get(index + 1).client : clients.get(0).client;
 	}
 
+	public void replaceTimestamp(int index, Instant timestamp) {
+		clients.get(index).timestamp = timestamp;
+	}
+
+	public Instant getTimestamp(int index) {
+		return clients.get(index).timestamp;
+	}
 }
