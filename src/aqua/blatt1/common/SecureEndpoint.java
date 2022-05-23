@@ -8,10 +8,7 @@ import javax.crypto.Cipher;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
 import javax.crypto.spec.SecretKeySpec;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.ObjectOutputStream;
-import java.io.Serializable;
+import java.io.*;
 import java.net.DatagramPacket;
 import java.net.InetSocketAddress;
 import java.net.SocketException;
@@ -21,8 +18,8 @@ import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 
 public class SecureEndpoint extends Endpoint {
-    private final String MATERIAL = "CAFEBABECAFEBABE";
-    private final String ENCODING_KEY = "AES";
+    private static final String MATERIAL = "CAFEBABECAFEBABE";
+    private static final String ENCODING_KEY = "AES";
     private Cipher encodingCipher;
     private Cipher decodingCipher;
 
@@ -52,7 +49,25 @@ public class SecureEndpoint extends Endpoint {
         }
     }
 
-    public void send(InetSocketAddress receiver, Serializable payload) {
+    public Message decryptPayload(Message msg) {
+        try {
+            CipherText payloadCipher = (CipherText) msg.getPayload();
+            byte[] decodedPayload = decodingCipher.doFinal(payloadCipher.getCipherText());
+            ByteArrayInputStream bos = new ByteArrayInputStream(decodedPayload);
+            ObjectInputStream ois = new ObjectInputStream(bos);
+            return new Message((Serializable) ois.readObject(), msg.getSender());
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        } catch (IllegalBlockSizeException e) {
+            throw new RuntimeException(e);
+        } catch (BadPaddingException e) {
+            throw new RuntimeException(e);
+        } catch (ClassNotFoundException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public Serializable encryptPayload(Serializable payload) {
         try {
             ByteArrayOutputStream bos = new ByteArrayOutputStream();
             ObjectOutputStream oos = new ObjectOutputStream(bos);
@@ -60,7 +75,7 @@ public class SecureEndpoint extends Endpoint {
             oos.flush();
             byte[] serializedPayload = bos.toByteArray();
             byte[] encodedPayload = encodingCipher.doFinal(serializedPayload);
-            super.send(receiver, encodedPayload);
+            return new CipherText(encodedPayload);
         } catch (IllegalBlockSizeException e) {
             throw new RuntimeException(e);
         } catch (BadPaddingException e) {
@@ -69,15 +84,14 @@ public class SecureEndpoint extends Endpoint {
             throw new RuntimeException(e);
         }
     }
+    public void send(InetSocketAddress receiver, Serializable payload) {
+        super.send(receiver, encryptPayload(payload));
+    }
     public Message blockingReceive() {
-        //TODO: implement decoding
-        Message msg = super.blockingReceive();
-        return msg;
+        return decryptPayload(super.blockingReceive());
     }
 
     public Message nonBlockingReceive() {
-        //TODO: implement decoding
-        Message msg = super.nonBlockingReceive();
-        return msg;
+        return decryptPayload(super.nonBlockingReceive());
     }
 }

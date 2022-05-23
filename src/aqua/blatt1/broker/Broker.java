@@ -1,5 +1,6 @@
 package aqua.blatt1.broker;
 
+import aqua.blatt1.common.SecureEndpoint;
 import aqua.blatt1.common.msgtypes.*;
 import aqua.blatt2.broker.PoisonPill;
 import messaging.*;
@@ -18,7 +19,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import javax.swing.JOptionPane;
 
 public class Broker {
-    private Endpoint endpoint = new Endpoint(4711);
+    private Endpoint endpoint = new SecureEndpoint(4711);
     private ClientCollection<InetSocketAddress> collection = new ClientCollection<InetSocketAddress>();
     volatile private boolean stopRequested = false;
     private int index = 1;
