@@ -9,6 +9,7 @@ import java.io.Serializable;
 import java.net.InetSocketAddress;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.Objects;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.concurrent.ExecutorService;
@@ -143,8 +144,6 @@ public class Broker {
             if (message.getPayload() instanceof PoisonPill) {
                 break;
             }
-            Runnable brokerTask = new BrokerTask(message);
-            executor.execute(brokerTask);
         }
         executor.shutdown();
     }

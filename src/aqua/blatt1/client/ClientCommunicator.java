@@ -1,6 +1,7 @@
 package aqua.blatt1.client;
 
 import java.net.InetSocketAddress;
+import java.util.Objects;
 
 import aqua.blatt1.common.SecureEndpoint;
 import aqua.blatt1.common.msgtypes.*;

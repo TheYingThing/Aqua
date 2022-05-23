@@ -1,5 +1,7 @@
 package aqua.blatt1.common;
 
+import aqua.blatt1.common.msgtypes.KeyXChangeRequest;
+import aqua.blatt1.common.msgtypes.KeyXChangeResponse;
 import messaging.Endpoint;
 import messaging.Message;
 
@@ -7,44 +9,45 @@ import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
-import javax.crypto.spec.SecretKeySpec;
 import java.io.*;
-import java.net.DatagramPacket;
 import java.net.InetSocketAddress;
-import java.net.SocketException;
-import java.net.SocketTimeoutException;
-import java.nio.charset.StandardCharsets;
-import java.security.InvalidKeyException;
-import java.security.NoSuchAlgorithmException;
+import java.security.*;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Stack;
 
 public class SecureEndpoint extends Endpoint {
-    private static final String MATERIAL = "CAFEBABECAFEBABE";
-    private static final String ENCODING_KEY = "AES";
-    private Cipher encodingCipher;
-    private Cipher decodingCipher;
+    private static final String ENCODING_KEY = "RSA";
+    private PublicKey publicKey;
+    private Map<InetSocketAddress, PublicKey> knownKeys;
+    private Map<InetSocketAddress, Stack<Serializable>> backlog;
+    private Cipher privateCipher;
 
     public SecureEndpoint() {
         super();
         initCiphers();
+        this.knownKeys = new HashMap<>();
+        this.backlog = new HashMap<>();
     }
 
     public SecureEndpoint(int port) {
         super(port);
         initCiphers();
+        this.knownKeys = new HashMap<>();
+        this.backlog = new HashMap<>();
     }
 
     private void initCiphers() {
         try {
-            SecretKeySpec key = new SecretKeySpec(MATERIAL.getBytes(), ENCODING_KEY);
-            encodingCipher = Cipher.getInstance(ENCODING_KEY);
-            encodingCipher.init(Cipher.ENCRYPT_MODE, key);
-            decodingCipher = Cipher.getInstance(ENCODING_KEY);
-            decodingCipher.init(Cipher.DECRYPT_MODE, key);
-        } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException(e);
-        } catch (NoSuchPaddingException e) {
-            throw new RuntimeException(e);
-        } catch (InvalidKeyException e) {
+            KeyPairGenerator keyGen = KeyPairGenerator.getInstance(ENCODING_KEY);
+            keyGen.initialize(1024);
+            KeyPair pair = keyGen.generateKeyPair();
+            PrivateKey privateKey = pair.getPrivate();
+            this.publicKey = pair.getPublic();
+            privateCipher = Cipher.getInstance(ENCODING_KEY);
+            privateCipher.init(Cipher.DECRYPT_MODE, privateKey);
+        } catch (NoSuchAlgorithmException | NoSuchPaddingException | InvalidKeyException e) {
             throw new RuntimeException(e);
         }
     }
@@ -52,46 +55,84 @@ public class SecureEndpoint extends Endpoint {
     public Message decryptPayload(Message msg) {
         try {
             CipherText payloadCipher = (CipherText) msg.getPayload();
-            byte[] decodedPayload = decodingCipher.doFinal(payloadCipher.getCipherText());
+            byte[] decodedPayload = privateCipher.doFinal(payloadCipher.getCipherText());
             ByteArrayInputStream bos = new ByteArrayInputStream(decodedPayload);
             ObjectInputStream ois = new ObjectInputStream(bos);
             return new Message((Serializable) ois.readObject(), msg.getSender());
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        } catch (IllegalBlockSizeException e) {
-            throw new RuntimeException(e);
-        } catch (BadPaddingException e) {
-            throw new RuntimeException(e);
-        } catch (ClassNotFoundException e) {
+        } catch (IOException | IllegalBlockSizeException | BadPaddingException | ClassNotFoundException e) {
             throw new RuntimeException(e);
         }
     }
 
-    public Serializable encryptPayload(Serializable payload) {
+    public Serializable encryptPayload(InetSocketAddress receiver, Serializable payload) {
         try {
             ByteArrayOutputStream bos = new ByteArrayOutputStream();
             ObjectOutputStream oos = new ObjectOutputStream(bos);
             oos.writeObject(payload);
             oos.flush();
             byte[] serializedPayload = bos.toByteArray();
-            byte[] encodedPayload = encodingCipher.doFinal(serializedPayload);
+            Cipher encode = Cipher.getInstance(ENCODING_KEY);
+            encode.init(Cipher.ENCRYPT_MODE, knownKeys.get(receiver));
+            byte[] encodedPayload = encode.doFinal(serializedPayload);
             return new CipherText(encodedPayload);
-        } catch (IllegalBlockSizeException e) {
-            throw new RuntimeException(e);
-        } catch (BadPaddingException e) {
-            throw new RuntimeException(e);
-        } catch (IOException e) {
+        } catch (IllegalBlockSizeException | BadPaddingException | IOException | NoSuchPaddingException |
+                 NoSuchAlgorithmException | InvalidKeyException e) {
             throw new RuntimeException(e);
         }
     }
     public void send(InetSocketAddress receiver, Serializable payload) {
-        super.send(receiver, encryptPayload(payload));
+        if(knownKeys.containsKey(receiver)) {
+            super.send(receiver, encryptPayload(receiver, payload));
+        } else {
+            super.send(receiver, new KeyXChangeRequest(this.publicKey));
+            if (!backlog.containsKey(receiver)) {
+                backlog.put(receiver, new Stack<>());
+            }
+            backlog.get(receiver).push(payload);
+        }
+
     }
     public Message blockingReceive() {
-        return decryptPayload(super.blockingReceive());
+        Message msg;
+        while(true) {
+            msg = super.blockingReceive();
+            InetSocketAddress sender = msg.getSender();
+            if(msg.getPayload() instanceof KeyXChangeRequest) {
+                knownKeys.put(sender, ((KeyXChangeRequest) msg.getPayload()).getPublicKey());
+                super.send(sender, new KeyXChangeResponse(this.publicKey));
+                continue;
+            }
+            if(msg.getPayload() instanceof KeyXChangeResponse) {
+                knownKeys.put(sender, ((KeyXChangeResponse) msg.getPayload()).getPublicKey());
+                while(!backlog.get(sender).isEmpty()) {
+                    this.send(sender, backlog.get(sender).pop());
+                }
+                continue;
+            }
+            break;
+        }
+        return decryptPayload(msg);
     }
 
     public Message nonBlockingReceive() {
-        return decryptPayload(super.nonBlockingReceive());
+        Message msg;
+        while(true) {
+            msg = super.nonBlockingReceive();
+            InetSocketAddress sender = msg.getSender();
+            if(msg.getPayload() instanceof KeyXChangeRequest) {
+                knownKeys.put(sender, ((KeyXChangeRequest) msg.getPayload()).getPublicKey());
+                super.send(sender, new KeyXChangeResponse(this.publicKey));
+                continue;
+            }
+            if(msg.getPayload() instanceof KeyXChangeResponse) {
+                knownKeys.put(sender, ((KeyXChangeResponse) msg.getPayload()).getPublicKey());
+                while(!backlog.get(sender).isEmpty()) {
+                    this.send(sender, backlog.get(sender).pop());
+                }
+                continue;
+            }
+            break;
+        }
+        return decryptPayload(msg);
     }
 }
