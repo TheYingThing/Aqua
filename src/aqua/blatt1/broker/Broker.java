@@ -18,7 +18,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import javax.swing.JOptionPane;
 
 public class Broker {
-    private Endpoint endpoint = new Endpoint(4711);
+    private SecureEndpoint endpoint = new SecureEndpoint(4711);
     private ClientCollection<InetSocketAddress> collection = new ClientCollection<InetSocketAddress>();
     volatile private boolean stopRequested = false;
     private int index = 1;
