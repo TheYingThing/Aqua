@@ -1,44 +1,53 @@
 package aqua.blatt1.client;
 
 import java.net.InetSocketAddress;
+import java.rmi.NotBoundException;
+import java.rmi.RemoteException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
+import aqua.blatt1.broker.AquaBroker;
 import aqua.blatt1.common.Direction;
 import aqua.blatt1.common.FishModel;
 import aqua.blatt1.common.RecordingModus;
-import aqua.blatt1.common.msgtypes.CollectionToken;
-import aqua.blatt1.common.msgtypes.NameResolutionResponse;
+import aqua.blatt1.common.msgtypes.*;
 
 import static aqua.blatt1.common.RecordingModus.*;
 
-public class TankModel extends Observable implements Iterable<FishModel> {
+
+public class TankModel extends Observable implements Iterable<FishModel>, AquaClient {
 
 	public static final int WIDTH = 600;
 	public static final int HEIGHT = 350;
 	protected static final int MAX_FISHIES = 5;
 	protected static final Random rand = new Random();
 	protected volatile String id;
-	protected volatile InetSocketAddress leftNeighbor;
-	protected volatile InetSocketAddress rightNeighbor;
+	protected volatile AquaClient leftNeighbor;
+	protected volatile AquaClient rightNeighbor;
 	protected volatile boolean token = false;
 	protected volatile Timer timer = new Timer();
 	protected final Set<FishModel> fishies;
 	protected final Map<String, InetSocketAddress> homeAgent;
 	protected int fishCounter = 0;
-
 	protected RecordingModus modus = IDLE;
 	protected CollectionToken collectionToken;
 	protected int fishSnapshot = 0;
 	protected int globalSnapshot = 0;
 	protected boolean initiator = false;
 	protected final ClientCommunicator.ClientForwarder forwarder;
+	protected final AquaBroker broker;
+	protected AquaClient stub;
 
-	public TankModel(ClientCommunicator.ClientForwarder forwarder) {
+	public TankModel(ClientCommunicator.ClientForwarder forwarder, AquaBroker broker) throws RemoteException, NotBoundException {
 		this.fishies = Collections.newSetFromMap(new ConcurrentHashMap<FishModel, Boolean>());
 		this.homeAgent = new HashMap<String, InetSocketAddress>();
 		this.forwarder = forwarder;
+		this.broker = broker;
+	}
+
+	public void setStub(AquaClient stub) {
+		this.stub = stub;
 	}
 
 	synchronized void onRegistration(String id, int lease, boolean reregister) {
@@ -49,7 +58,12 @@ public class TankModel extends Observable implements Iterable<FishModel> {
 		TimerTask task = new TimerTask() {
 			@Override
 			public void run() {
-				forwarder.register();
+				try {
+					broker.sendRegisterRequest(new RegisterRequest(stub));
+				} catch (RemoteException e) {
+					throw new RuntimeException(e);
+				}
+				forwarder.register(stub);
 			}
 		};
 		timer.schedule(task, (lease - 1) * 1000L);
@@ -81,7 +95,7 @@ public class TankModel extends Observable implements Iterable<FishModel> {
 		}
 	}
 
-	public synchronized void updateNeighbors(InetSocketAddress left, InetSocketAddress right) {
+	public synchronized void updateNeighbors(AquaClient left, AquaClient right) {
 		if(left != null) {
 			this.leftNeighbor = (left != this.leftNeighbor) ? left : null;
 		}
@@ -110,17 +124,24 @@ public class TankModel extends Observable implements Iterable<FishModel> {
 
 			if (fish.hitsEdge())
 				if(hasToken()) {
-					if(fish.getDirection() == Direction.LEFT) {
-						forwarder.handOff(fish, this.leftNeighbor);
-						if(!modus.equals(IDLE)) {
-							fishSnapshot--;
+					try {
+						if(fish.getDirection() == Direction.LEFT) {
+							leftNeighbor.sendHandoffRequest(new HandoffRequest(fish));
+							//forwarder.handOff(fish, this.leftNeighbor);
+							if(!modus.equals(IDLE)) {
+								fishSnapshot--;
+							}
+						} else {
+							rightNeighbor.sendHandoffRequest(new HandoffRequest(fish));
+							//forwarder.handOff(fish, this.rightNeighbor);
+							if(!modus.equals(IDLE)) {
+								fishSnapshot--;
+							}
 						}
-					} else {
-						forwarder.handOff(fish, this.rightNeighbor);
-						if(!modus.equals(IDLE)) {
-							fishSnapshot--;
-						}
+					} catch (RemoteException e) {
+						throw new RuntimeException(e);
 					}
+
 				} else {
 					fish.reverse();
 				}
@@ -219,7 +240,7 @@ public class TankModel extends Observable implements Iterable<FishModel> {
 	}
 
 	protected void run() {
-		forwarder.register();
+		forwarder.register(stub);
 
 		try {
 			while (!Thread.currentThread().isInterrupted()) {
@@ -238,4 +259,48 @@ public class TankModel extends Observable implements Iterable<FishModel> {
 		forwarder.deregister(id);
 	}
 
+	@Override
+	public void sendRegisterResponse(RegisterResponse registerResponse) throws RemoteException {
+
+	}
+
+	@Override
+	public void sendHandoffRequest(HandoffRequest handoffRequest) throws RemoteException {
+
+	}
+
+	@Override
+	public void sendNeighborUpdate(NeighborUpdate neighborUpdate) throws RemoteException {
+
+	}
+
+	@Override
+	public void sendToken() throws RemoteException {
+
+	}
+
+	@Override
+	public void sendSnapshotMarker(SnapshotMarker snapshotMarker) throws RemoteException {
+
+	}
+
+	@Override
+	public void sendCollectionToken(CollectionToken collectionToken) throws RemoteException {
+
+	}
+
+	@Override
+	public void sendLocationRequest(LocationRequest locationRequest) throws RemoteException {
+
+	}
+
+	@Override
+	public void sendNameResolutionResponse(NameResolutionResponse nameResolutionResponse) throws RemoteException {
+
+	}
+
+	@Override
+	public void sendLocationUpdate(LocationUpdate locationUpdate) throws RemoteException {
+
+	}
 }

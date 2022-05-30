@@ -23,8 +23,8 @@ public class ClientCommunicator {
 			this.broker = new InetSocketAddress(Properties.HOST, Properties.PORT);
 		}
 
-		public void register() {
-			endpoint.send(broker, new RegisterRequest());
+		public void register(AquaClient stub) {
+			endpoint.send(broker, new RegisterRequest(stub));
 		}
 
 		public void deregister(String id) {
