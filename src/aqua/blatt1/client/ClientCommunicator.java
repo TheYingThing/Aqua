@@ -1,4 +1,4 @@
-package aqua.blatt1.client;
+/*package aqua.blatt1.client;
 
 import java.net.InetSocketAddress;
 
@@ -106,3 +106,4 @@ public class ClientCommunicator {
 	}
 
 }
+*/

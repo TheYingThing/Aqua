@@ -15,17 +15,14 @@ import static aqua.blatt1.common.Properties.BROKER_NAME;
 public class Aqualife {
 
 	public static void main(String[] args) throws NotBoundException, RemoteException {
-		ClientCommunicator communicator = new ClientCommunicator();
+		//ClientCommunicator communicator = new ClientCommunicator();
+		//System.setProperty("java.rmi.server.hostname", BROKER_NAME);
 
 		Registry registry = LocateRegistry.getRegistry(Registry.REGISTRY_PORT);
 
 		AquaBroker broker = (AquaBroker) registry.lookup(BROKER_NAME);
 
-		TankModel tankModel = new TankModel(communicator.newClientForwarder(), broker);
-		AquaClient stub = (AquaClient) UnicastRemoteObject.exportObject(tankModel, 0);
-		tankModel.setStub(stub);
-
-		communicator.newClientReceiver(tankModel).start();
+		TankModel tankModel = new TankModel(broker);
 
 		SwingUtilities.invokeLater(new AquaGui(tankModel));
 

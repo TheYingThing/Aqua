@@ -4,6 +4,7 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.rmi.RemoteException;
 
 public class ToggleController implements ActionListener {
 	private final Component parent;
@@ -17,7 +18,11 @@ public class ToggleController implements ActionListener {
 	}
 	@Override
 	public void actionPerformed(ActionEvent e) {
-		tank.locateFishGlobally(fishID);
+		try {
+			tank.locateFishGlobally(fishID);
+		} catch (RemoteException ex) {
+			throw new RuntimeException(ex);
+		}
 
 	}
 }

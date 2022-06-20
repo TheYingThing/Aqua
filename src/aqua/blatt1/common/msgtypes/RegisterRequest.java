@@ -8,7 +8,7 @@ import java.io.Serializable;
 public final class RegisterRequest implements Serializable {
     private final AquaClient stub;
     public RegisterRequest(AquaClient stub) {
-        this.stub = null;
+        this.stub = stub;
     }
     public AquaClient getStub() {
         return stub;
